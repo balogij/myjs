@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Név-Mátrix - Ékezet Fix</title>
+  <script src="https://unpkg.com/three"></script>
+  <script src="https://unpkg.com/globe.gl"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #000205; overflow: hidden; font-family: 'Montserrat', sans-serif; }
+    #globeViz { position: absolute; top: 0; }
+    
+    /* Ez a rész felel az ékezetekért és a megjelenésért */
+    .name-label {
+      color: var(--color);
+      font-size: var(--size);
+      font-weight: bold;
+      text-shadow: 0 0 8px var(--color);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      /* Fontos: ne legyen alapértelmezett eltolás */
+      transform: translate(-50%, -50%); 
+    }
+
+    .header {
+      position: absolute; top: 20px; width: 100%; text-align: center;
+      color: #00f2ff; pointer-events: none; z-index: 10;
+      text-transform: uppercase; letter-spacing: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Név-Mátrix v4.0</h1>
+    <p style="font-size: 0.7em; color: #4e7679;">Garantált ékezetek & Stabil pozíciók</p>
+  </div>
+  
+  <div id="globeViz"></div>
+
+  <script>
+    const rawNames = [
+      { name: 'Árpád', pop: 65 }, { name: 'Hanna', pop: 98 },
+      { name: 'Máté', pop: 92 }, { name: 'Örs', pop: 45 },
+      { name: 'György', pop: 55 }, { name: 'Zoltán', pop: 65 },
+      { name: 'László', pop: 70 }, { name: 'Boglárka', pop: 75 },
+      { name: 'Gergő', pop: 78 }, { name: 'István', pop: 60 },
+      { name: 'Viktória', pop: 80 }, { name: 'Zsombor', pop: 82 },
+      { name: 'Bence', pop: 95 }, { name: 'Ágnes', pop: 58 },
+      { name: 'Gyöngyi', pop: 30 }, { name: 'Lőrinc', pop: 45 },
+      { name: 'Szűcs', pop: 38 }, { name: 'András', pop: 74 }
+    ];
+
+    // Fibonacci pontok a gömb felületén az egyenletes elosztáshoz
+    function getFibonacciPoints(n) {
+      const pts = [];
+      const inc = Math.PI * (3 - Math.sqrt(5));
+      const off = 2 / n;
+      for (let k = 0; k < n; k++) {
+        const y = k * off - 1 + (off / 2);
+        const r = Math.sqrt(1 - y * y);
+        const phi = k * inc;
+        pts.push({
+          lat: Math.asin(y) * (180 / Math.PI),
+          lng: Math.atan2(Math.sin(phi) * r, Math.cos(phi) * r) * (180 / Math.PI)
+        });
+      }
+      return pts;
+    }
+
+    const points = getFibonacciPoints(100).sort(() => Math.random() - 0.5);
+
+    const gData = rawNames.map((item, i) => ({
+      lat: points[i].lat,
+      lng: points[i].lng,
+      name: item.name,
+      size: (item.pop / 5) + 12 + 'px',
+      color: item.pop > 75 ? '#00f2ff' : '#ff0055'
+    }));
+
+    const world = Globe()
+      (document.getElementById('globeViz'))
+      .backgroundColor('#000205')
+      .showGlobe(false)
+      .showGraticules(true)
+      .showAtmosphere(true)
+      .atmosphereColor('#00f2ff')
+      .atmosphereAltitude(0.25)
+      
+      // HTML ELEMEK - Ez a böngésző natív szövegkezelőjét használja
+      .htmlElementsData(gData)
+      .htmlElement(d => {
+        const el = document.createElement('div');
+        el.innerHTML = d.name; // Itt a HTML kezeli az ékezetet!
+        el.className = 'name-label';
+        el.style.setProperty('--color', d.color);
+        el.style.setProperty('--size', d.size);
+        return el;
+      });
+
+    world.controls().autoRotate = true;
+    world.controls().autoRotateSpeed = 0.7;
+
+    // Dinamikus rácsszín váltás
+    let h = 180;
+    setInterval(() => {
+      h = (h + 0.5) % 360;
+      const c = `hsl(${h}, 100%, 50%)`;
+      world.scene().traverse(obj => {
+        if (obj.type === 'LineSegments') {
+          obj.material.color.set(c);
+          obj.material.opacity = 0.15;
+        }
+      });
+      world.atmosphereColor(c);
+    }, 50);
+
+    world.pointOfView({ altitude: 2.5 });
+  </script>
+</body>
+</html>

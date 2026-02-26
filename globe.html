@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Időjárás - Debug Mód</title>
+  <script src="https://unpkg.com/globe.gl"></script>
+  <style>
+    body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; }
+    #globeViz { position: absolute; top: 0; }
+    .controls { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; }
+    .search-box { background: rgba(0,0,0,0.85); padding: 15px; border-radius: 12px; border: 1px solid #444; display: flex; gap: 5px; }
+    input { background: #222; border: 1px solid #555; color: white; padding: 8px; border-radius: 5px; width: 180px; }
+    button { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+    
+    /* Hibaüzenet stílusa */
+    #error-display { color: #ff4444; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; display: none; max-width: 250px; font-size: 13px; border: 1px solid #ff4444; }
+    
+    .info-panel { background: rgba(0,0,0,0.85); padding: 20px; border-radius: 12px; border: 1px solid #444; display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="globeViz"></div>
+  
+  <div class="controls">
+    <div class="search-box">
+      <input type="text" id="cityInput" placeholder="Város (pl. Budapest)">
+      <button onclick="searchCity()">Keresés</button>
+    </div>
+    
+    <div id="error-display"></div>
+
+    <div class="info-panel" id="ui">
+      <h2 id="city-name" style="margin:0 0 10px 0"></h2>
+      <p id="weather-desc" style="margin:0; color: #ccc;"></p>
+      <p id="temp" style="font-size: 2.5em; font-weight: bold; margin: 10px 0;"></p>
+    </div>
+  </div>
+
+  <script>
+    // A TE KULCSOD
+    const API_KEY = 'bfe4cd58e91e15b1b42004c5e7619777'; 
+    
+    const world = Globe()
+      (document.getElementById('globeViz'))
+      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+      .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+      .pointColor(() => 'red')
+      .pointRadius(1);
+
+    async function searchCity() {
+      const city = document.getElementById('cityInput').value;
+      const errorDiv = document.getElementById('error-display');
+      const uiDiv = document.getElementById('ui');
+      
+      errorDiv.style.display = 'none';
+      if (!city) return;
+
+      try {
+        // 1. Koordináták lekérése
+        const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${API_KEY}`);
+        const geoData = await geoRes.json();
+
+        if (geoData.cod && geoData.cod !== 200) throw new Error(geoData.message);
+        if (geoData.length === 0) throw new Error("A várost nem találom!");
+
+        const { lat, lon, name } = geoData[0];
+
+        // 2. Időjárás lekérése
+        const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=hu`);
+        const weatherData = await weatherRes.json();
+
+        if (weatherData.cod != 200) throw new Error(weatherData.message);
+
+        // UI Frissítés
+        uiDiv.style.display = 'block';
+        document.getElementById('city-name').innerText = name;
+        document.getElementById('weather-desc').innerText = weatherData.weather[0].description;
+        document.getElementById('temp').innerText = `${Math.round(weatherData.main.temp)}°C`;
+        
+        // Mozgás a gömbön
+        world.pointsData([{ lat, lng: lon, name }]);
+        world.pointOfView({ lat, lng: lon, altitude: 2 }, 1500);
+
+      } catch (err) {
+        console.error(err);
+        errorDiv.innerText = "Hiba: " + err.message;
+        errorDiv.style.display = 'block';
+        if (err.message.includes("Invalid API key")) {
+            errorDiv.innerText += " (Lehet, hogy még nem aktiválódott a kulcsod? Várj 1 órát!)";
+        }
+      }
+    }
+    
+    // Enter gomb figyelése
+    document.getElementById('cityInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') searchCity();
+    });
+  </script>
+</body>
+</html>
